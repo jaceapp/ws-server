@@ -1,17 +1,17 @@
 import http from 'http';
 import { Server as socketIo } from 'socket.io';
 import Redis from 'ioredis';
+import dotenv from 'dotenv';
 
-// @TODO: move this to laravel package, and make it "copy it over" during yace:install
-// @TODO: Use Laravel .env for these configurations
-// @TODO: Do not use "*"
-// @TODO: REQUIRES CLEANUP. Everything is in one file.
+// @TODO: REQUIRES CLEANUP. I hate this, but TIME
 
-function startServer() {
+function startServer(customConfig = {}) {
+    let process = getConfig(customConfig);
+
     const server = http.createServer();
     const io = new socketIo(server, {
         cors: {
-            origin: "*", // Adjust with your Laravel app's origin
+            origin: process.parsed.APP_URL, // Adjust with your Laravel app's origin
             methods: ["GET", "POST"], // Methods allowed
             credentials: true, // If credentials are needed
         },
@@ -19,9 +19,9 @@ function startServer() {
 
     // Connect to Redis
     const redis = new Redis({
-        host: "127.0.0.1", // Redis server host
-        port: 6379, // Redis server port
-        password: "root",
+        host: process.parsed.REDIS_HOST, // Redis server host
+        port: process.parsed.REDIS_PORT, // Redis server port
+        password: process.parsed.REDIS_PASSWORD,
     });
 
     // Subscribe to the private channel
@@ -58,7 +58,6 @@ function startServer() {
     });
 
     io.on("connection", (socket) => {
-        console.log(socket);
         console.log("A user connected");
 
         socket.on("disconnect", () => {
@@ -66,9 +65,20 @@ function startServer() {
         });
     });
 
-    server.listen(3000, () => {
-        console.log("Socket.IO server listening on port 3000");
+    // TODO: Somesort of global const for stuff like this
+    server.listen(process.parsed.JACE_WEBSOCKET_PORT ?? 3000, () => {
+        console.log("Socket.IO server listening on port " + process.parsed.JACE_WEBSOCKET_PORT ?? 3000);
     });
+}
+
+function getConfig(customConfig = {}) {
+    let process = dotenv.config();
+
+    for (const [key, value] of Object.entries(customConfig)) {
+        process.parsed[key] = value;
+    }
+
+    return process;
 }
 
 export default startServer;
